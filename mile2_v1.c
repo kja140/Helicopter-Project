@@ -33,6 +33,8 @@
 //*****************************************************************************
 #define BUF_SIZE 60
 #define SAMPLE_RATE_HZ 480
+#define PREVIOUS_STATE_DEFAULT 6
+#define YAW_DEFAULT 0
 
 //*****************************************************************************
 // Global variables
@@ -179,7 +181,7 @@ YawIntHandler(void)
 
 
     int8_t currentState = (yawSignalA << 1) | yawSignalB;
-    if (previousState == 6) {
+    if (previousState == PREVIOUS_STATE_DEFAULT) {
         previousState = currentState;
     }
 switch (previousState) {
@@ -214,8 +216,8 @@ switch (previousState) {
     default:
         break;
 }
-
     previousState = currentState;
+    GPIOIntClear(GPIOPortB, GPIOPin0 | GPIOPin1);
 }
 
 
@@ -367,7 +369,8 @@ int main(void)
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
     //:pwm
 
-    previousState = 69;
+    previousState = PREVIOUS_STATE_DEFAULT;
+    yaw = YAW_DEFAULT;
 
     initClock ();
     initADC ();
