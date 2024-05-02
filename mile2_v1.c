@@ -33,7 +33,7 @@
 //*****************************************************************************
 #define BUF_SIZE 60
 #define SAMPLE_RATE_HZ 480
-#define PREVIOUS_STATE_DEFAULT 6
+//#define PREVIOUS_STATE_DEFAULT 0x50
 #define YAW_DEFAULT 0
 
 //*****************************************************************************
@@ -171,52 +171,57 @@ void
 YawIntHandler(void)
 {
     int32_t gpioPinStates;
-    int32_t gpioYawReference;
 
     gpioPinStates = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-    gpioYawReference = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
+ //   gpioYawReference = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
+//0x0002
+    int8_t yawSignalA = (gpioPinStates & 0x02) >> 1; // Isolate bit 0
+    int8_t yawSignalB = (gpioPinStates & 0x01); // Isolate bit 1
 
-    int8_t yawSignalA = gpioPinStates & 0x01;
-    int8_t yawSignalB = gpioPinStates & 0x02;
 
-
-    int8_t currentState = yawSignalA | (yawSignalB<< 1);
-    if (previousState == PREVIOUS_STATE_DEFAULT) {
-        previousState = currentState;
+    if (previousState == 0x50) {
+        previousState = gpioPinStates;
     }
 switch (previousState) {
     case 0:
         if (yawSignalA == 0 && yawSignalB == 1) {
             yaw++;
-        } else {
+            previousState = 0x01;
+        } else if (yawSignalA == 1 && yawSignalB == 0){
             yaw--;
+            previousState = 0x10;
         }
         break;
     case 1:
         if (yawSignalA == 1 && yawSignalB == 1) {
             yaw++;
-        } else {
+            previousState = 0x11;
+        } else if (yawSignalA == 0 && yawSignalB == 0) {
             yaw--;
-        }
-        break;
-    case 2:
-        if (yawSignalA == 0 && yawSignalB == 0) {
-            yaw++;
-        } else {
-            yaw--;
+            previousState = 0x00;
         }
         break;
     case 3:
         if (yawSignalA == 1 && yawSignalB == 0) {
             yaw++;
-        } else {
+            previousState = 0x10;
+        } else if (yawSignalA == 0 && yawSignalB == 1){
             yaw--;
+            previousState = 0x01;
+        }
+        break;
+    case 2:
+        if (yawSignalA == 0 && yawSignalB == 0) {
+            yaw++;
+            previousState = 0x00;
+        } else if (yawSignalA == 1 && yawSignalB == 1) {
+            yaw--;
+            previousState = 0x11;
         }
         break;
     default:
         break;
 }
-    previousState = currentState;
     GPIOIntClear(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
 
@@ -344,6 +349,11 @@ displayPercentageVal(int32_t perVal)  //displayMeanVal(uint16_t meanVal, uint32_
     OLEDStringDraw (string, 0, 1);
 }
 
+int16_t calculateDegrees(int16_t yaw)
+{
+    return yaw * 0.8;
+}
+
 
 
 
@@ -369,7 +379,7 @@ int main(void)
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
     //:pwm
 
-    previousState = PREVIOUS_STATE_DEFAULT;
+    previousState = 0x50;
     yaw = YAW_DEFAULT;
 
     initClock ();
