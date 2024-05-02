@@ -180,7 +180,7 @@ YawIntHandler(void)
     int8_t yawSignalB = gpioPinStates & 0x02;
 
 
-    int8_t currentState = (yawSignalA << 1) | yawSignalB;
+    int8_t currentState = yawSignalA | (yawSignalB<< 1);
     if (previousState == PREVIOUS_STATE_DEFAULT) {
         previousState = currentState;
     }
@@ -217,7 +217,7 @@ switch (previousState) {
         break;
 }
     previousState = currentState;
-    GPIOIntClear(GPIOPortB, GPIOPin0 | GPIOPin1);
+    GPIOIntClear(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
 
 
