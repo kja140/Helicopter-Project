@@ -332,11 +332,11 @@ displayMeanVal(uint16_t meanVal, uint32_t helicopterLandedAltitude)
     OLEDStringDraw("Altitude and Yaw", 0, 0);
 
     // Display the mean ADC value
-    usnprintf(string, sizeof(string), "MeanADC=%4d", meanVal);
+    usnprintf(string, sizeof(string), "MeanADC=%4d  ", meanVal);
     OLEDStringDraw(string, 0, 1);
 
     // Display the helicopter landed altitude
-    usnprintf(string, sizeof(string), "LandedADC=%5d", helicopterLandedAltitude);
+    usnprintf(string, sizeof(string), "LandedADC=%5d  ", helicopterLandedAltitude);
     OLEDStringDraw(string, 0, 2);
 
     // Display the yaw
@@ -360,7 +360,7 @@ displayPercentageVal(int32_t perVal)  //displayMeanVal(uint16_t meanVal, uint32_
 
     // Form a new string for the line.  The maximum width specified for the
     //  number field ensures it is displayed right justified.
-    usnprintf (string, sizeof(string), "Altitude = %4d", perVal);
+    usnprintf (string, sizeof(string), "Altitude = %4d%%  ", perVal);
     // Update line on display.
     OLEDStringDraw (string, 0, 1);
 }
