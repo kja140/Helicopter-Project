@@ -175,8 +175,8 @@ YawIntHandler(void)
     gpioPinStates = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
  //   gpioYawReference = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
 //0x0002
-    int8_t yawSignalA = (gpioPinStates & 0x02) >> 1; // Isolate bit 0
-    int8_t yawSignalB = (gpioPinStates & 0x01); // Isolate bit 1
+    int8_t yawSignalB = (gpioPinStates & 0x02) >> 1; // Isolate bit 0
+    int8_t yawSignalA = (gpioPinStates & 0x01); // Isolate bit 1
 
 
     if (previousState == 0x50) {
@@ -186,37 +186,37 @@ switch (previousState) {
     case 0:
         if (yawSignalA == 0 && yawSignalB == 1) {
             yaw++;
-            previousState = 0x01;
+            previousState = 0b01;
         } else if (yawSignalA == 1 && yawSignalB == 0){
             yaw--;
-            previousState = 0x10;
+            previousState = 0b10;
         }
         break;
     case 1:
         if (yawSignalA == 1 && yawSignalB == 1) {
             yaw++;
-            previousState = 0x11;
+            previousState = 0b11;
         } else if (yawSignalA == 0 && yawSignalB == 0) {
             yaw--;
-            previousState = 0x00;
+            previousState = 0b00;
         }
         break;
     case 3:
         if (yawSignalA == 1 && yawSignalB == 0) {
             yaw++;
-            previousState = 0x10;
+            previousState = 0b10;
         } else if (yawSignalA == 0 && yawSignalB == 1){
             yaw--;
-            previousState = 0x01;
+            previousState = 0b01;
         }
         break;
     case 2:
         if (yawSignalA == 0 && yawSignalB == 0) {
             yaw++;
-            previousState = 0x00;
+            previousState = 0b00;
         } else if (yawSignalA == 1 && yawSignalB == 1) {
             yaw--;
-            previousState = 0x11;
+            previousState = 0b11;
         }
         break;
     default:
@@ -309,6 +309,16 @@ initYaw(void)
 
 }
 
+int16_t calculateYawDegrees(int16_t yaw) {
+    int16_t yawd = ((yaw * 3600) / 448) % 3600;
+    if (yawd > 1800) {
+        yawd -= 3600;
+    } else if (yawd < -1792) {
+        yawd += 3600;
+    }
+    return yawd;
+}
+
 //*****************************************************************************
 //
 // Function to display the mean ADC value (10-bit value, note) and sample count.
@@ -330,9 +340,15 @@ displayMeanVal(uint16_t meanVal, uint32_t helicopterLandedAltitude)
     OLEDStringDraw(string, 0, 2);
 
     // Display the yaw
-    usnprintf(string, sizeof(string), "Yaw=%4d", yaw);
+
+    int16_t yawd = calculateYawDegrees(yaw);
+    int16_t yawdwhole = yawd / 10;
+    int16_t yawddec = abs(yawd % 10);
+
+    usnprintf(string, sizeof(string), "Yaw=%d.%d deg   ", yawdwhole, yawddec);
     OLEDStringDraw(string, 0, 4);
 }
+
 
 
 void
@@ -349,11 +365,6 @@ displayPercentageVal(int32_t perVal)  //displayMeanVal(uint16_t meanVal, uint32_
     OLEDStringDraw (string, 0, 1);
 }
 
-int16_t calculateDegrees(int16_t yaw)
-{
-    return yaw * 0.8;
-}
-
 
 
 
@@ -363,6 +374,8 @@ int main(void)
     int32_t sum;
     uint16_t adcMean;
     int32_t percentagePower;
+
+
 
     //pwm:
 
