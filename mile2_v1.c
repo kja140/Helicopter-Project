@@ -43,6 +43,16 @@ static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample 
 static uint32_t g_ulSampCnt;    // Counter for the interrupts
 static volatile int16_t yaw;
 static volatile int8_t previousState;
+static int32_t current_time_nano;
+static int32_t last_update_time;
+static float prev_altitude = 0;
+static float I = 0;
+const float Kp = 0.2;
+const float Ki = 0;
+const float Kd = 0;
+volatile int8_t pid_flag = 0;
+
+
 
 
 //pwm:
@@ -56,13 +66,13 @@ static volatile int8_t previousState;
  * Constants
  **********************************************************/
 // PWM configuration
-#define PWM_START_RATE_HZ  250
-#define PWM_RATE_STEP_HZ   50
-#define PWM_RATE_MIN_HZ    50
-#define PWM_RATE_MAX_HZ    400
-#define PWM_FIXED_DUTY     67
-#define PWM_DIVIDER_CODE   SYSCTL_PWMDIV_4
-#define PWM_DIVIDER        4
+#define PWM_MAIN_RATE_HZ 100 // PWM frequency
+#define PWM_START_DC 0 // PWM duty cycle (10%)
+#define PWM_DIVIDER_CODE SYSCTL_PWMDIV_2 // PWM clock pre-scaler (1/2)
+#define PWM_DIVIDER 2
+
+#define PWM_TAIL_RATE_HZ 200 // PWM frequency
+#define PWM_TAIL_DC 40 // PWM duty cycle (10%)
 
 //  PWM Hardware Details M0PWM7 (gen 3)
 //  ---Main Rotor PWM: PC5, J4-05
@@ -76,46 +86,129 @@ static volatile int8_t previousState;
 #define PWM_MAIN_GPIO_CONFIG GPIO_PC5_M0PWM7
 #define PWM_MAIN_GPIO_PIN    GPIO_PIN_5
 
+#define PWM_TAIL_BASE        PWM1_BASE
+#define PWM_TAIL_GEN         PWM_GEN_2
+#define PWM_TAIL_OUTNUM      PWM_OUT_5
+#define PWM_TAIL_OUTBIT      PWM_OUT_5_BIT
+#define PWM_TAIL_PERIPH_PWM  SYSCTL_PERIPH_PWM1
+#define PWM_TAIL_PERIPH_GPIO SYSCTL_PERIPH_GPIOF
+#define PWM_TAIL_GPIO_BASE   GPIO_PORTF_BASE
+#define PWM_TAIL_GPIO_CONFIG GPIO_PF1_M1PWM5
+#define PWM_TAIL_GPIO_PIN    GPIO_PIN_1
+
+#define MAX_DUTY   98.00
+#define MIN_DUTY   2.00
+
+
 /*******************************************
  *      Local prototypes
  *******************************************/
 void initialisePWM (void);
-void setPWM (uint32_t u32Freq, uint32_t u32Duty);
+void setPWM (uint32_t u32Freq, uint32_t u32Duty, int is_main_rotor);
 
 
 void
 initialisePWM (void)
 {
+    last_update_time = current_time_nano;
     SysCtlPeripheralEnable(PWM_MAIN_PERIPH_PWM);
     SysCtlPeripheralEnable(PWM_MAIN_PERIPH_GPIO);
 
     GPIOPinConfigure(PWM_MAIN_GPIO_CONFIG);
     GPIOPinTypePWM(PWM_MAIN_GPIO_BASE, PWM_MAIN_GPIO_PIN);
 
-    PWMGenConfigure(PWM_MAIN_BASE, PWM_MAIN_GEN,
-                    PWM_GEN_MODE_UP_DOWN | PWM_GEN_MODE_NO_SYNC);
+    uint32_t ui32MainPeriod = SysCtlClockGet() / PWM_DIVIDER / PWM_MAIN_RATE_HZ;
+
+    PWMGenConfigure(PWM_MAIN_BASE, PWM_MAIN_GEN, PWM_GEN_MODE_UP_DOWN | PWM_GEN_MODE_NO_SYNC);
+    PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32MainPeriod);
+
+    PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM, ui32MainPeriod * PWM_START_DC / 100);
     // Set the initial PWM parameters
-    setPWM (PWM_START_RATE_HZ, PWM_FIXED_DUTY);
+    //setPWM (PWM_MAIN_RATE_HZ, PWM_MAIN_DC, 1);
 
     PWMGenEnable(PWM_MAIN_BASE, PWM_MAIN_GEN);
 
     // Disable the output.  Repeat this call with 'true' to turn O/P on.
-    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, false);
+    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
+
+
+
+
+    SysCtlPeripheralEnable(PWM_TAIL_PERIPH_PWM);
+    SysCtlPeripheralEnable(PWM_TAIL_PERIPH_GPIO);
+
+    GPIOPinConfigure(PWM_TAIL_GPIO_CONFIG);
+    GPIOPinTypePWM(PWM_TAIL_GPIO_BASE, PWM_TAIL_GPIO_PIN);
+
+    uint32_t ui32TailPeriod = SysCtlClockGet() / PWM_DIVIDER / PWM_TAIL_RATE_HZ;
+
+    PWMGenConfigure(PWM_TAIL_BASE, PWM_TAIL_GEN, PWM_GEN_MODE_UP_DOWN | PWM_GEN_MODE_NO_SYNC);
+    PWMGenPeriodSet(PWM_TAIL_BASE, PWM_TAIL_GEN, ui32TailPeriod);
+
+    PWMPulseWidthSet(PWM_TAIL_BASE, PWM_TAIL_OUTNUM, ui32TailPeriod * PWM_TAIL_DC / 100);
+    // Set the initial PWM parameters
+    setPWM (PWM_TAIL_RATE_HZ, PWM_TAIL_DC, 0);
+
+    PWMGenEnable(PWM_TAIL_BASE, PWM_TAIL_GEN);
+
+    // Disable the output.  Repeat this call with 'true' to turn O/P on.
+    PWMOutputState(PWM_TAIL_BASE, PWM_TAIL_OUTBIT, true);
 }
 
 /********************************************************
  * Function to set the freq, duty cycle of M0PWM7
  ********************************************************/
 void
-setPWM (uint32_t ui32Freq, uint32_t ui32Duty)
+setPWM (uint32_t ui32Freq, uint32_t duty_cycle, int is_main_rotor)
 {
-    // Calculate the PWM period corresponding to the freq.
-    uint32_t ui32Period =
-        SysCtlClockGet() / PWM_DIVIDER / ui32Freq;
+    if (is_main_rotor) {
+        // Calculate the PWM period corresponding to the freq.
+        uint32_t ui32Period =
+            SysCtlClockGet() / PWM_DIVIDER / ui32Freq;
 
-    PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32Period);
-    PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM,
-        ui32Period * ui32Duty / 100);
+        PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32Period);
+        PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM,
+            ui32Period * duty_cycle / 100);
+    } else {
+        // Calculate the PWM period corresponding to the freq.
+        uint32_t ui32Period =
+            SysCtlClockGet() / PWM_DIVIDER / ui32Freq;
+
+        PWMGenPeriodSet(PWM_TAIL_BASE, PWM_TAIL_GEN, ui32Period);
+        PWMPulseWidthSet(PWM_TAIL_BASE, PWM_TAIL_OUTNUM,
+            ui32Period * PWM_TAIL_DC / 100);
+    }
+}
+
+
+
+float PIDUpdate (float setpoint, float current_altitude) {
+
+    float delta_t = 0.002083;
+            //(current_time_nano*1000000) - last_update_time;
+    //(last_update_time/1000000) = current_time_nano;
+
+    float error = setpoint - current_altitude;
+    float P = Kp * error;
+    float dI = Ki * error * delta_t;
+    float D = Kd * (prev_altitude - current_altitude) / delta_t;
+
+    float gain = P + (I + dI) + D;
+
+    I = (I + dI);
+    if (I > 100) {
+        I = 100;
+    } else if (I < 0) {
+        I = 0;
+    }
+    prev_altitude = current_altitude;
+
+    if (gain > MAX_DUTY) {
+        gain = MAX_DUTY;
+    } else if (gain < MIN_DUTY) {
+        gain = MIN_DUTY;
+    }
+    return gain;
 }
 
 //:pwm
@@ -128,7 +221,8 @@ setPWM (uint32_t ui32Freq, uint32_t ui32Duty)
 void
 SysTickIntHandler(void)
 {
-
+    current_time_nano += 2083333;
+    pid_flag = 1;
     // Initiate a conversion
     //
     ADCProcessorTrigger(ADC0_BASE, 3);
@@ -374,10 +468,12 @@ int main(void)
     int32_t sum;
     uint16_t adcMean;
     int32_t percentagePower;
-
+    int32_t duty_cycle = 2;
+    int32_t gain = 0;
 
 
     //pwm:
+    SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
 
     // As a precaution, make sure that the peripherals used are reset
     SysCtlPeripheralReset (PWM_MAIN_PERIPH_GPIO); // Used for PWM output
@@ -387,9 +483,15 @@ int main(void)
 
     initButtons ();  // Initialises 4 pushbuttons (UP, DOWN, LEFT, RIGHT)
     initialisePWM ();
+    SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL |
+    SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    SysCtlPWMClockSet(PWM_DIVIDER_CODE);
+
+    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
+
 
     // Initialisation is complete, so turn on the output.
-    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
     //:pwm
 
     previousState = 0x50;
@@ -416,6 +518,16 @@ int main(void)
         //
         // Background task: calculate the (approximate) mean of the values in the
         // circular buffer and display it, together with the sample number.
+
+
+        //if (pid_flag == 1) {
+            pid_flag = 0;
+            gain = PIDUpdate(80, percentagePower);
+            duty_cycle *= gain;
+            setPWM (PWM_MAIN_RATE_HZ, duty_cycle, 1);
+        //}
+
+        //setPWM (PWM_TAIL_RATE_HZ, PWM_TAIL_DC, 0);
 
         sum = 0;
         for (i = 0; i < BUF_SIZE; i++)
