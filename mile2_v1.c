@@ -60,7 +60,7 @@ volatile int8_t pid_flag = 0;
 #define BUF_SIZE 60
 
 static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
-static volatile counter;
+static volatile int8_t counter;
 
 //*****************************************************************************
 //
@@ -180,6 +180,7 @@ uint16_t getADCAverage(void) {
 
 int main(void)
 {
+    IntMasterDisable();
     uint16_t adcMean;
     int32_t percentagePower;
     int32_t duty_cycle = 2;
@@ -193,18 +194,22 @@ int main(void)
     SysCtlPeripheralReset (UP_BUT_PERIPH);        // UP button GPIO
     SysCtlPeripheralReset (DOWN_BUT_PERIPH);      // DOWN button GPIO
 
-    initButtons ();  // Initialises 4 pushbuttons (UP, DOWN, LEFT, RIGHT)
-    initPWM ();
     initClock ();
+    initButtons ();  // Initialises 4 pushbuttons (UP, DOWN, LEFT, RIGHT) and sw1 and sw2
+    initDisplay ();
+    while (sw1_is_up ()) {
+        displaySetupScreen();
+    }
+    OrbitOledClear();
+    initPWM ();
     initADC ();
     initYaw ();
-    initDisplay ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
     bool landed = 1;
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
 
 
-    uint8_t displayState = 0;
+    //uint8_t displayState = 0;
     uint16_t helicopterLandedAltitude = 0;
 
 
@@ -237,10 +242,15 @@ int main(void)
         //if (pid_flag == 1) {
         //    pid_flag = 0;
             duty_cycle = PIDUpdate(100, percentagePower);
-            setPWM (PWM_MAIN_RATE_HZ, duty_cycle, 1);
+            setPWM_Main_DC (duty_cycle);
         //}
 
 
+        //if (sw1_changed())
+            // the DOWN position of the switch should indicate that the helicopter is either landed or in the process of landing.
+            // Changing the slider switch from DOWN to UP when the helicopter is landed should cause the helicopter to take off.
+
+        /*
         if ((checkButton (UP) == PUSHED)) {
             if (displayState < 2) {
                 displayState++;
@@ -249,121 +259,16 @@ int main(void)
             }
             OrbitOledClear();
         }
-
+        */
+        displayYaw_Altitude_PWMMain_PWMTail(percentagePower);
+        /*
         if (displayState == 0) {
 
             displayPercentageVal(percentagePower);
         } else if (displayState == 1) {
             displayMeanAndYaw(adcMean, helicopterLandedAltitude);
-        }
+        }*/
 
         SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
     }
 }
-/*
-
-
-volatile int8_t pid_flag = 0;
-
-//*****************************************************************************
-//
-// The interrupt handler for the for SysTick interrupt.
-//
-//*****************************************************************************
-void
-SysTickIntHandler(void)
-{
-    //current_time_nano += 2083333;
-    pid_flag = 1;
-    // Initiate a conversion
-    //
-    ADCProcessorTrigger(ADC0_BASE, 3);
-    //
-    // Poll the buttons
-    updateButtons();
-    //
-}
-
-//*****************************************************************************
-// Initialisation functions for the clock (incl. SysTick), ADC, display
-//*****************************************************************************
-void
-initClock (void)
-{
-    // Set the clock rate to 20 MHz
-    SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN |
-                   SYSCTL_XTAL_16MHZ);
-    //
-    // Set up the period for the SysTick timer.  The SysTick timer period is
-    // set as a function of the system clock.
-    SysTickPeriodSet(SysCtlClockGet() / SAMPLE_RATE_HZ);
-    //
-    // Register the interrupt handler
-    SysTickIntRegister(SysTickIntHandler);
-
-    //
-    // Enable interrupt and device
-    SysTickIntEnable();
-    SysTickEnable();
-}
-
-int main(void) {
-    uint16_t adcMean;
-    int32_t percentagePower;
-    int32_t duty_cycle = 2;
-    float gain = 0;
-
-    initClock();
-    initADC();
-    initYaw();
-    initDisplay();
-    initButtons();
-    initPWM();
-
-
-    // Enable interrupts to the processor.
-    IntMasterEnable();
-    SysCtlDelay (SysCtlClockGet() / 24);
-    while (1) //each volt is 1,241 units
-    {
-        //
-        // Background task: calculate the (approximate) mean of the values in the
-        // circular buffer and display it, together with the sample number.
-
-
-        //if (pid_flag == 1) {
-            pid_flag = 0;
-            gain = PIDUpdate(80, percentagePower);
-            duty_cycle *= gain;
-            setPWM (PWM_MAIN_RATE_HZ, duty_cycle, 1);
-        //}
-
-        adcMean = getADCAverage();
-
-        uint8_t displayState = 0;
-        uint16_t helicopterLandedAltitude = 0;
-
-        if (checkButton (LEFT) == PUSHED) {
-            helicopterLandedAltitude = adcMean;
-        }
-
-        if ((checkButton (UP) == PUSHED)) {
-            if (displayState < 2) {
-                displayState++;
-            } else {
-                displayState = 0;
-            }
-            OrbitOledClear();
-        }
-
-        if (displayState == 0) {
-            percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
-            displayPercentageVal(percentagePower);
-        } else if (displayState == 1) {
-            displayMeanAndYaw(adcMean, helicopterLandedAltitude);
-        }
-
-        SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
-    }
-}
-*/

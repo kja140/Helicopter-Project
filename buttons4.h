@@ -55,6 +55,10 @@ enum butStates {RELEASED = 0, PUSHED, NO_CHANGE};
 void
 initButtons (void);
 
+
+void
+slider_init(void);
+
 // *******************************************************
 // updateButtons: Function designed to be called regularly. It polls all
 // buttons once and updates variables associated with the buttons if
@@ -70,5 +74,12 @@ updateButtons (void);
 // enumeration butStates, excluding 'NUM_BUTS'. Safe under interrupt.
 uint8_t
 checkButton (uint8_t butName);
+
+
+bool
+sw1_changed (void);
+
+bool
+sw1_is_up (void);
 
 #endif /*BUTTONS_H_*/

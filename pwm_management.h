@@ -16,7 +16,13 @@
 
 
 void initPWM (void);
-void setPWM (uint32_t u32Freq, uint32_t u32Duty, int is_main_rotor);
-
+void
+setPWM_Main_DC (int8_t duty_cycle);
+void
+setPWM_Tail_DC (int8_t duty_cycle);
+int8_t
+getPWM_Main_DC (void);
+int8_t
+getPWM_Tail_DC (void);
 
 #endif // PWM_CONTROL_H_
