@@ -74,8 +74,7 @@ displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude) {
     int16_t yawddec = abs(yawd % 10);
     int8_t dutyMain = getPWM_Main_DC();
     int8_t dutyTail = getPWM_Tail_DC();
-    char deg=248;
-    usnprintf(string, sizeof(string), "Yaw: %d.%d% deg   ", yawdwhole, yawddec);
+    usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
     OLEDStringDraw(string, 0, 0);
 
     usnprintf(string, sizeof(string), "Altitude: %4d%%   ", alitude);

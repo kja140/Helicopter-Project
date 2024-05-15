@@ -12,12 +12,12 @@
 
 // PWM configuration
 //#define PWM_MAIN_RATE_HZ 100 // PWM frequency
-#define PWM_START_DC 40 // PWM duty cycle (0%)
+#define PWM_START_DC 2 // PWM duty cycle (2%)
 #define PWM_DIVIDER 2
 static uint32_t ui32Period;
 
-#define PWM_TAIL_RATE_HZ 200 // PWM frequency
-#define PWM_TAIL_DC 40 // PWM duty cycle (40%)
+//#define PWM_TAIL_RATE_HZ 200 // PWM frequency
+//#define PWM_TAIL_DC 40 // PWM duty cycle (40%)
 
 //  PWM Hardware Details M0PWM7 (gen 3)
 //  ---Main Rotor PWM: PC5, J4-05
@@ -83,7 +83,7 @@ initPWM (void)
     PWMGenPeriodSet(PWM_TAIL_BASE, PWM_TAIL_GEN, ui32Period);
 
     // Set the initial PWM parameters
-    setPWM_Tail_DC (PWM_TAIL_DC);
+    setPWM_Tail_DC (PWM_START_DC);
 
     PWMGenEnable(PWM_TAIL_BASE, PWM_TAIL_GEN);
 
@@ -117,7 +117,7 @@ void
 setPWM_Tail_DC (int8_t duty_cycle)
 {
     duty_cycle_tail = duty_cycle;
-    PWMPulseWidthSet(PWM_TAIL_BASE, PWM_TAIL_OUTNUM, ui32Period * PWM_TAIL_DC / 100);
+    PWMPulseWidthSet(PWM_TAIL_BASE, PWM_TAIL_OUTNUM, ui32Period * duty_cycle / 100);
 }
 
 

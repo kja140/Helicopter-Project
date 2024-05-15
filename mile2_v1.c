@@ -182,8 +182,8 @@ int main(void)
 {
     IntMasterDisable();
     uint16_t adcMean;
-    int32_t percentagePower;
-    int32_t duty_cycle = 2;
+    int16_t percentagePower;
+    //int32_t duty_cycle = 2;
 
     SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ); // 20MHz
     SysCtlPWMClockSet(PWM_DIVIDER_CODE); //PWM Clock rate 10MHz
@@ -239,11 +239,11 @@ int main(void)
         }
 
         percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
-        //if (pid_flag == 1) {
-        //    pid_flag = 0;
-            duty_cycle = PIDUpdate(100, percentagePower);
-            setPWM_Main_DC (duty_cycle);
-        //}
+        if (pid_flag == 1) {
+            pid_flag = 0;
+            PIDUpdateAlt(80, percentagePower);
+            PIDUpdateYaw(0, getYaw());
+        }
 
 
         //if (sw1_changed())
