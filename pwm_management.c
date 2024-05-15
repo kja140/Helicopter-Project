@@ -12,11 +12,12 @@
 
 // PWM configuration
 //#define PWM_MAIN_RATE_HZ 100 // PWM frequency
-#define PWM_START_DC 0 // PWM duty cycle (10%)
+#define PWM_START_DC 40 // PWM duty cycle (0%)
 #define PWM_DIVIDER 2
+static uint32_t ui32MainPeriod;
 
 #define PWM_TAIL_RATE_HZ 200 // PWM frequency
-#define PWM_TAIL_DC 40 // PWM duty cycle (10%)
+#define PWM_TAIL_DC 40 // PWM duty cycle (40%)
 
 //  PWM Hardware Details M0PWM7 (gen 3)
 //  ---Main Rotor PWM: PC5, J4-05
@@ -42,22 +43,22 @@
 void
 initPWM (void)
 {
-    SysCtlPWMClockSet(PWM_DIVIDER_CODE);
+    //SysCtlPWMClockSet(PWM_DIVIDER_CODE);
     //last_update_time = current_time_nano;
     SysCtlPeripheralEnable(PWM_MAIN_PERIPH_PWM);
     SysCtlPeripheralEnable(PWM_MAIN_PERIPH_GPIO);
 
-    GPIOPinConfigure(PWM_MAIN_GPIO_CONFIG);
     GPIOPinTypePWM(PWM_MAIN_GPIO_BASE, PWM_MAIN_GPIO_PIN);
+    GPIOPinConfigure(PWM_MAIN_GPIO_CONFIG);
 
-    uint32_t ui32MainPeriod = SysCtlClockGet() / PWM_DIVIDER / PWM_MAIN_RATE_HZ;
+    ui32MainPeriod = SysCtlClockGet() / PWM_DIVIDER / PWM_MAIN_RATE_HZ;
 
     PWMGenConfigure(PWM_MAIN_BASE, PWM_MAIN_GEN, PWM_GEN_MODE_UP_DOWN | PWM_GEN_MODE_NO_SYNC);
     PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32MainPeriod);
 
     PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM, ui32MainPeriod * PWM_START_DC / 100);
     // Set the initial PWM parameters
-    //setPWM (PWM_MAIN_RATE_HZ, PWM_MAIN_DC, 1);
+    //setPWM (PWM_MAIN_RATE_HZ, PWM_START_DC, 1);
 
     PWMGenEnable(PWM_MAIN_BASE, PWM_MAIN_GEN);
 
@@ -66,7 +67,7 @@ initPWM (void)
 
 
 
-
+/*
     SysCtlPeripheralEnable(PWM_TAIL_PERIPH_PWM);
     SysCtlPeripheralEnable(PWM_TAIL_PERIPH_GPIO);
 
@@ -86,6 +87,7 @@ initPWM (void)
 
     // Disable the output.  Repeat this call with 'true' to turn O/P on.
     PWMOutputState(PWM_TAIL_BASE, PWM_TAIL_OUTBIT, true);
+    */
 }
 
 /********************************************************
@@ -95,14 +97,12 @@ void
 setPWM (uint32_t ui32Freq, uint32_t duty_cycle, int is_main_rotor)
 {
     if (is_main_rotor) {
-        // Calculate the PWM period corresponding to the freq.
-        uint32_t ui32Period =
-            SysCtlClockGet() / PWM_DIVIDER / ui32Freq;
 
-        PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32Period);
-        PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM,
-            ui32Period * duty_cycle / 100);
-    } else {
+        //PWMGenPeriodSet(PWM_MAIN_BASE, PWM_MAIN_GEN, ui32MainPeriod);
+
+        PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM, ui32MainPeriod * duty_cycle / 100);
+    }
+    /*else {
         // Calculate the PWM period corresponding to the freq.
         uint32_t ui32Period =
             SysCtlClockGet() / PWM_DIVIDER / ui32Freq;
@@ -111,4 +111,5 @@ setPWM (uint32_t ui32Freq, uint32_t duty_cycle, int is_main_rotor)
         PWMPulseWidthSet(PWM_TAIL_BASE, PWM_TAIL_OUTNUM,
             ui32Period * PWM_TAIL_DC / 100);
     }
+    */
 }

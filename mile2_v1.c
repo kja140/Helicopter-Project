@@ -60,7 +60,7 @@ volatile int8_t pid_flag = 0;
 #define BUF_SIZE 60
 
 static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
-
+static volatile counter;
 
 //*****************************************************************************
 //
@@ -71,7 +71,12 @@ void
 SysTickIntHandler(void)
 {
     //current_time_nano += 2083333;
-    pid_flag = 1;
+    if (counter >= 10) {
+        pid_flag = 1;
+        counter = 0;
+    } else
+        counter++;
+
     // Initiate a conversion
     //
     ADCProcessorTrigger(ADC0_BASE, 3);
@@ -178,10 +183,9 @@ int main(void)
     uint16_t adcMean;
     int32_t percentagePower;
     int32_t duty_cycle = 2;
-    int32_t gain = 0;
 
-
-    //SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+    SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ); // 20MHz
+    SysCtlPWMClockSet(PWM_DIVIDER_CODE); //PWM Clock rate 10MHz
 
     // As a precaution, make sure that the peripherals used are reset
     SysCtlPeripheralReset (PWM_MAIN_PERIPH_GPIO); // Used for PWM output
@@ -191,16 +195,14 @@ int main(void)
 
     initButtons ();  // Initialises 4 pushbuttons (UP, DOWN, LEFT, RIGHT)
     initPWM ();
-    //SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
-    SysCtlPWMClockSet(PWM_DIVIDER_CODE);
-    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
-
-
     initClock ();
     initADC ();
     initYaw ();
     initDisplay ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
+    bool landed = 1;
+    PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
+
 
     uint8_t displayState = 0;
     uint16_t helicopterLandedAltitude = 0;
@@ -215,22 +217,29 @@ int main(void)
     {
 
 
-        //if (pid_flag == 1) {
-            pid_flag = 0;
-            gain = PIDUpdate(80, percentagePower);
-            duty_cycle *= gain;
-            setPWM (PWM_MAIN_RATE_HZ, duty_cycle, 1);
-        //}
-
 
 
         adcMean = getADCAverage();
 
 
 
-        if (checkButton (LEFT) == PUSHED) {
-            helicopterLandedAltitude = adcMean;
+        if ((checkButton (LEFT) == PUSHED)) {
+            landed = 1;
         }
+
+        if (landed == 1) {
+            helicopterLandedAltitude = adcMean;
+            //helicopterMaxAltitude = (adcMean - 1241);
+            landed = 0;
+        }
+
+        percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
+        //if (pid_flag == 1) {
+        //    pid_flag = 0;
+            duty_cycle = PIDUpdate(100, percentagePower);
+            setPWM (PWM_MAIN_RATE_HZ, duty_cycle, 1);
+        //}
+
 
         if ((checkButton (UP) == PUSHED)) {
             if (displayState < 2) {
@@ -242,7 +251,7 @@ int main(void)
         }
 
         if (displayState == 0) {
-            percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
+
             displayPercentageVal(percentagePower);
         } else if (displayState == 1) {
             displayMeanAndYaw(adcMean, helicopterLandedAltitude);
