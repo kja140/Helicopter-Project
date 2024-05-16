@@ -12,8 +12,8 @@
 
 // PWM configuration
 //#define PWM_MAIN_RATE_HZ 100 // PWM frequency
-#define PWM_START_DC 2 // PWM duty cycle (2%)
-#define PWM_DIVIDER 2
+#define PWM_START_DC 0 // PWM duty cycle (2%)
+#define PWM_DIVIDER 4
 static uint32_t ui32Period;
 
 //#define PWM_TAIL_RATE_HZ 200 // PWM frequency

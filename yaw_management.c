@@ -8,6 +8,10 @@
 static volatile int16_t yaw = YAW_DEFAULT;
 static volatile int8_t previousState = PREVIOUS_STATE_DEFAULT;
 
+static int16_t yawReference;
+static int32_t gpioYawReference;
+static volatile int8_t calibrated = 0;
+
 
 void
 initYaw(void)
@@ -21,9 +25,18 @@ initYaw(void)
     GPIOIntTypeSet(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_BOTH_EDGES);
     GPIOIntEnable(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
+    GPIOPinTypeGPIOInput(GPIO_PORTC_BASE, GPIO_PIN_4);
+    GPIOPadConfigSet(GPIO_PORTC_BASE, GPIO_PIN_4, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    GPIOIntRegister(GPIO_PORTC_BASE, YawRefIntHandler);
+    GPIOIntTypeSet(GPIO_PORTC_BASE, GPIO_PIN_4, GPIO_FALLING_EDGE);
+    GPIOIntEnable(GPIO_PORTC_BASE, GPIO_PIN_4);
+
+
 }
 
-int16_t getYaw(void) {
+int32_t getYaw(void) {
     return yaw;
 }
 
@@ -36,6 +49,9 @@ int16_t calculateYawDegrees(int16_t yaw) {
     }
     return yawd;
 }
+
+
+
 //*****************************************************************************
 //
 // The handler for the yaw interrupt.
@@ -47,7 +63,8 @@ YawIntHandler(void)
     int32_t gpioPinStates;
 
     gpioPinStates = GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
- //   gpioYawReference = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
+
+
 //0x0002
     int8_t yawSignalB = (gpioPinStates & 0x02) >> 1; // Isolate bit 0
     int8_t yawSignalA = (gpioPinStates & 0x01); // Isolate bit 1
@@ -98,4 +115,20 @@ switch (previousState) {
 }
     GPIOIntClear(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 }
+int8_t getCalibratedStatus (void){
+    return calibrated;
+}
 
+
+void YawRefIntHandler (void) {
+    gpioYawReference = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
+    yawReference = (gpioYawReference & 0x04) >> 3;
+    if (!calibrated) {
+        if (yawReference == 0) {
+            calibrated = 1;
+            yaw = 0;
+        }
+    }
+    GPIOIntClear(GPIO_PORTC_BASE, GPIO_PIN_4);
+
+}

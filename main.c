@@ -8,7 +8,6 @@
 //*****************************************************************************
 // Based on the 'convert' series from 2016
 //*****************************************************************************
-
 //#include <stdint.h>
 //#include <stdbool.h>
 //#include "inc/hw_types.h"
@@ -35,6 +34,7 @@
 #include "yaw_management.h"
 #include "pwm_management.h"
 #include "pid_control.h"
+#include "switch.h"
 //#include "adc_management.h"
 
 
@@ -44,23 +44,19 @@
 
 
 #define SAMPLE_RATE_HZ 480
-
+#define MIN_ALTITUDE 0
+#define MAX_ALTITUDE 100
+#define BUF_SIZE 60
 
 
 //*****************************************************************************
 // Global variables
 //*****************************************************************************
 static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
-
-//static int32_t current_time_nano;
-//static int32_t last_update_time;
-
 volatile int8_t pid_flag = 0;
-
-#define BUF_SIZE 60
-
-static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
-static volatile int8_t counter;
+static volatile int8_t counter = 0;
+int8_t set_altitude = 0;
+int32_t set_orientation = 0;
 
 //*****************************************************************************
 //
@@ -169,7 +165,7 @@ initADC (void)
     ADCIntEnable(ADC0_BASE, 3);
 }
 
-uint16_t getADCAverage(void) {
+int16_t getADCAverage(void) {
     uint32_t sum = 0;
     uint16_t i;
     for (i = 0; i < BUF_SIZE; i++)
@@ -178,10 +174,14 @@ uint16_t getADCAverage(void) {
 }
 
 
-int main(void)
-{
+
+
+
+
+
+int main(void){
     IntMasterDisable();
-    uint16_t adcMean;
+    int16_t adcMean;
     int16_t percentagePower;
     //int32_t duty_cycle = 2;
 
@@ -197,6 +197,7 @@ int main(void)
     initClock ();
     initButtons ();  // Initialises 4 pushbuttons (UP, DOWN, LEFT, RIGHT) and sw1 and sw2
     initDisplay ();
+    slider_init();
     while (sw1_is_up ()) {
         displaySetupScreen();
     }
@@ -204,6 +205,7 @@ int main(void)
     initPWM ();
     initADC ();
     initYaw ();
+
     initCircBuf (&g_inBuffer, BUF_SIZE);
     bool landed = 1;
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
@@ -218,57 +220,65 @@ int main(void)
     // Enable interrupts to the processor.
     IntMasterEnable();
     SysCtlDelay (SysCtlClockGet() / 24);
-    while (1) //each volt is 1,241 units
-    {
-
-
-
-
+    while (1) {
         adcMean = getADCAverage();
 
 
 
-        if ((checkButton (LEFT) == PUSHED)) {
-            landed = 1;
-        }
-
         if (landed == 1) {
             helicopterLandedAltitude = adcMean;
-            //helicopterMaxAltitude = (adcMean - 1241);
             landed = 0;
         }
 
-        percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
-        if (pid_flag == 1) {
-            pid_flag = 0;
-            PIDUpdateAlt(80, percentagePower);
-            PIDUpdateYaw(0, getYaw());
+        percentagePower = ((helicopterLandedAltitude - adcMean) * 100) / 1241;
+
+        if (checkButton(DOWN) == PUSHED) {
+            if (set_altitude - 10 < MIN_ALTITUDE)
+                set_altitude = MIN_ALTITUDE;
+            else
+                set_altitude -= 10;
         }
 
+        if (checkButton(UP) == PUSHED) {
+            if (set_altitude + 10 > MAX_ALTITUDE)
+                set_altitude = MAX_ALTITUDE;
+            else
+                set_altitude += 10;
+        }
 
+        if (checkButton(RIGHT) == PUSHED) {
+            if (set_orientation + 15 >= 180)
+                set_orientation -= 345;
+
+            else
+                set_orientation += 15;
+        }
+
+        if (checkButton(LEFT) == PUSHED) {
+            if (set_orientation - 15 <= -180)
+                set_orientation += 345;
+            else
+                set_orientation -= 15;
+        }
+
+        displayYaw_Altitude_PWMMain_PWMTail(percentagePower, set_orientation);
+
+        if (pid_flag == 1) {
+            pid_flag = 0;
+            PIDUpdateAlt(set_altitude, percentagePower);
+
+            if (getCalibratedStatus() == 0) {
+                do {
+                    setPWM_Tail_DC(40);
+                    //SysCtlDelay(2 * SysCtlClockGet());
+                } while (getCalibratedStatus() == 0);
+            } else {
+                PIDUpdateYaw(set_orientation, calculateYawDegrees(getYaw()) / 10);
+            }
+        }
+        //SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
         //if (sw1_changed())
             // the DOWN position of the switch should indicate that the helicopter is either landed or in the process of landing.
             // Changing the slider switch from DOWN to UP when the helicopter is landed should cause the helicopter to take off.
-
-        /*
-        if ((checkButton (UP) == PUSHED)) {
-            if (displayState < 2) {
-                displayState++;
-            } else {
-                displayState = 0;
-            }
-            OrbitOledClear();
-        }
-        */
-        displayYaw_Altitude_PWMMain_PWMTail(percentagePower);
-        /*
-        if (displayState == 0) {
-
-            displayPercentageVal(percentagePower);
-        } else if (displayState == 1) {
-            displayMeanAndYaw(adcMean, helicopterLandedAltitude);
-        }*/
-
-        SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
     }
 }

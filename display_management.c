@@ -66,7 +66,7 @@ displaySetupScreen (void) {
 }
 
 void
-displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude) {
+displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude, int32_t set_alt) {
     char string[17];  // 16 characters across the display
 
     int16_t yawd = calculateYawDegrees(getYaw());
@@ -80,9 +80,12 @@ displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude) {
     usnprintf(string, sizeof(string), "Altitude: %4d%%   ", alitude);
     OLEDStringDraw(string, 0, 1);
 
-    usnprintf(string, sizeof(string), "DC Main: %4d%%   ", dutyMain);
-    OLEDStringDraw(string, 0, 2);
+    //usnprintf(string, sizeof(string), "DC Main: %4d%%   ", dutyMain);
+    //OLEDStringDraw(string, 0, 2);
 
     usnprintf(string, sizeof(string), "DC Tail: %4d%%   ", dutyTail);
     OLEDStringDraw(string, 0, 3);
+
+    usnprintf(string, sizeof(string), "Set Yaw: %4d   ", set_alt);
+    OLEDStringDraw(string, 0, 2);
 }
