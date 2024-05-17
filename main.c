@@ -66,10 +66,10 @@ volatile bool ADCFlag = 0;
 
 volatile int8_t pid_flag = 0;
 static volatile int8_t counter = 0;
-int8_t set_altitude = 0;
+int8_t set_altitude;
 int32_t set_orientation = 0;
 volatile int16_t percentagePower;
-
+uint8_t slowTick = 0;
 //*****************************************************************************
 //
 // The interrupt handler for the for SysTick interrupt.
@@ -78,8 +78,10 @@ volatile int16_t percentagePower;
 void
 SysTickIntHandler(void)
 {
+
     static uint8_t tickCount = 0;
-    const uint8_t ticksPerSlow = SYSTICK_RATE_HZ / SLOWTICK_RATE_HZ;
+    static int8_t counter = 0;
+    const uint8_t ticksPerSlow = SAMPLE_RATE_HZ / SLOWTICK_RATE_HZ;
     // Initiate a conversion
     if (counter >= 10) {
         pid_flag = 1;
@@ -92,13 +94,14 @@ SysTickIntHandler(void)
     // Poll the buttons
     updateButtons();
     //
-    if (++tickCount >= ticksPerSlow)
+    if (tickCount >= ticksPerSlow)
     {                       // Signal a slow tick
+        slowTick = 1;
         tickCount = 0;
-        slowTick = true;
+    } else {
+        tickCount++;
     }
 }
-
 
 //*****************************************************************************
 // Initialisation functions for the clock (incl. SysTick), ADC, display
@@ -154,7 +157,11 @@ int main(void)
     initYaw ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
     initialiseUSB_UART ();
+
     bool landed = 1;
+    bool landing = 0;
+    bool altCalibrated = 1;
+
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
 
 
@@ -162,7 +169,7 @@ int main(void)
     uint16_t helicopterLandedAltitude = 0;
 
 
-
+    set_altitude = 0;
     //
     // Enable interrupts to the processor.
     IntMasterEnable();
@@ -175,10 +182,15 @@ int main(void)
         adcMean = getADCAverage();
         percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
 
-        if (landed == 1) {
+        if (altCalibrated == 1) {
             helicopterLandedAltitude = adcMean;
-            landed = 0;
+            altCalibrated = 0;
+            displayLandedScreen ();
         }
+
+        //if (landed == 1) {
+        //    displayLandedScreen ();
+        //}
 
 
         if (checkButton(DOWN) == PUSHED) {
@@ -209,38 +221,55 @@ int main(void)
             else
                 set_orientation -= 15;
         }
+        if (slowTick == 1) {
+              slowTick = false;
+              // Form and send a status message to the console
+              char statusStr[100];
+              usprintf(statusStr, "Altitude%2d | Desired Altitude%3d | Yaw%4d | Desired Yaw%4d Main Duty%4d | Tail Duty%4d \r\n", percentagePower, set_altitude, getYaw(), set_orientation, getPWM_Main_DC(), getPWM_Tail_DC());
+              UARTSend (statusStr);
+        }
 
-        displayYaw_Altitude_PWMMain_PWMTail(percentagePower, set_orientation);
+        if (landed == 0)
+            displayYaw_Altitude_PWMMain_PWMTail(percentagePower);
 
-        if (pid_flag == 1) {
-            pid_flag = 0;
-            PIDUpdateAlt(set_altitude, percentagePower);
+        //if (sw1_changed () == 0)
 
-            if (getCalibratedStatus() == 0) {
-                OrbitOledClear();
-                do {
-                    setPWM_Tail_DC(40);
-                    //SysCtlDelay(2 * SysCtlClockGet());
+
+        if ((sw1_is_up () == 1) && landing == 0) {
+            landed = 0;
+            if (pid_flag == 1) {
+                pid_flag = 0;
+                if (getCalibratedStatus() == 0) {
+                    OrbitOledClear();
                     displayCalibratingScreen();
-                } while (getCalibratedStatus() == 0);
-                OrbitOledClear();
-            } else {
-                PIDUpdateYaw(set_orientation, calculateYawDegrees(getYaw()) / 10);
+                    do {
+                        setPWM_Tail_DC(30);
+                        //setPWM_Main_DC(50);
+                        //PIDUpdateAlt(1, percentagePower);
+                        //SysCtlDelay(2 * SysCtlClockGet());
+                    } while (getCalibratedStatus() == 0);
+                    OrbitOledClear();
+                } else {
+                    PIDUpdateYaw(set_orientation, calculateYawDegrees(getYaw()) / 10);
+                }
+                PIDUpdateAlt(set_altitude, percentagePower);
+            }
+        } else if (sw1_is_up () == 0) {
+            OrbitOledClear();
+            if (percentagePower > 1) {
+                landing = 1;
+                displayLandedingScreen(percentagePower);
+                PIDUpdateYaw(0, calculateYawDegrees(getYaw()) / 10);
+                PIDUpdateAlt(0, percentagePower);
+            } else if (percentagePower < 1) {
+                landing = 0;
+                landed = 1;
+                displayLandedScreen ();
             }
         }
 
-        //SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
-        //if (sw1_changed())
-            // the DOWN position of the switch should indicate that the helicopter is either landed or in the process of landing.
-            // Changing the slider switch from DOWN to UP when the helicopter is landed should cause the helicopter to take off.
+        if (sw2_changed ())
+            SysCtlReset ();
 
-
-        if (slowTick)
-        {
-            slowTick = false;
-            // Form and send a status message to the console
-            usprintf(statusStr, "Altitude%2d | Desired Altitude%2d \r\n", percentagePower, set_altitude);
-            UARTSend (statusStr);
-        }
     }
 }

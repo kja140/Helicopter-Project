@@ -2,8 +2,6 @@
 
 #include "uart.h"
 
-volatile uint8_t slowTick = false;
-
 //********************************************************
 // initialiseUSB_UART - 8 bits, 1 stop bit, no parity
 //********************************************************

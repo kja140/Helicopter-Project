@@ -11,6 +11,9 @@ sw1_changed (void);
 bool
 sw1_is_up (void);
 
+bool
+sw2_changed (void);
+
 
 
 #endif // SWITCH_H_

@@ -68,16 +68,22 @@ displaySetupScreen (void) {
 void
 displayCalibratingScreen (void) {
     OLEDStringDraw ("Calibrating...", 0, 0);
-    char string[17];  // 16 characters across the display
-    int16_t yawd = calculateYawDegrees(getYaw());
-    int16_t yawdwhole = yawd / 10;
-    int16_t yawddec = abs(yawd % 10);
-    usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
-    OLEDStringDraw (string, 0, 1);
+    //char string[17];  // 16 characters across the display
+    //int16_t yawd = calculateYawDegrees(getYaw());
+    //int16_t yawdwhole = yawd / 10;
+    //int16_t yawddec = abs(yawd % 10);
+    //usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
+    //OLEDStringDraw (string, 0, 1);
 }
 
 void
-displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude, int32_t set_alt) {
+displayLandedScreen (void) {
+    OLEDStringDraw ("Landed", 0, 0);
+    OLEDStringDraw ("Switch 1 Up To  Fly", 0, 1);
+}
+
+void
+displayLandedingScreen (int32_t alitude) {
     char string[17];  // 16 characters across the display
 
     int16_t yawd = calculateYawDegrees(getYaw());
@@ -91,12 +97,36 @@ displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude, int32_t set_alt) {
     usnprintf(string, sizeof(string), "Altitude: %4d%%   ", alitude);
     OLEDStringDraw(string, 0, 1);
 
-    //usnprintf(string, sizeof(string), "DC Main: %4d%%   ", dutyMain);
-    //OLEDStringDraw(string, 0, 2);
+    usnprintf(string, sizeof(string), "DC Main: %4d%%   ", dutyMain);
+    OLEDStringDraw(string, 0, 2);
+
+    //usnprintf(string, sizeof(string), "DC Tail: %4d%%   ", dutyTail);
+    //OLEDStringDraw(string, 0, 3);
+
+    OLEDStringDraw("Landing", 0, 3);
+}
+
+void
+displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude) {
+    char string[17];  // 16 characters across the display
+
+    int16_t yawd = calculateYawDegrees(getYaw());
+    int16_t yawdwhole = yawd / 10;
+    int16_t yawddec = abs(yawd % 10);
+    int8_t dutyMain = getPWM_Main_DC();
+    int8_t dutyTail = getPWM_Tail_DC();
+    usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
+    OLEDStringDraw(string, 0, 0);
+
+    usnprintf(string, sizeof(string), "Altitude: %4d%%   ", alitude);
+    OLEDStringDraw(string, 0, 1);
+
+    usnprintf(string, sizeof(string), "DC Main: %4d%%   ", dutyMain);
+    OLEDStringDraw(string, 0, 2);
 
     usnprintf(string, sizeof(string), "DC Tail: %4d%%   ", dutyTail);
     OLEDStringDraw(string, 0, 3);
 
-    usnprintf(string, sizeof(string), "Set Yaw: %4d   ", set_alt);
-    OLEDStringDraw(string, 0, 2);
+    //usnprintf(string, sizeof(string), "Set Yaw: %4d   ", set_alt);
+   // OLEDStringDraw(string, 0, 2);
 }

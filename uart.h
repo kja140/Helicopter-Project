@@ -20,7 +20,7 @@
 
 
 
-#define SYSTICK_RATE_HZ 10
+//#define SYSTICK_RATE_HZ 10
 #define SLOWTICK_RATE_HZ 4
 #define MAX_STR_LEN 32
 //---USB Serial comms: UART0, Rx:PA0 , Tx:PA1
@@ -39,6 +39,6 @@ void displayButtonState (char *butStr, char *stateStr,
     uint8_t numPushes, uint8_t charLine);
 
 char statusStr[MAX_STR_LEN + 1];
-extern volatile uint8_t slowTick;
+extern volatile uint8_t tickCount;
 
 #endif // UART_H_

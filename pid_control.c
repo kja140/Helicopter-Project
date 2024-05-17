@@ -4,8 +4,8 @@
 
 const float MAX_DUTY = 98.00;
 const float MIN_DUTY = 2.00;
-const float MAX_YAW_DUTY = 5.00;
-const float MIN_YAW_DUTY = -5.00;
+const float MAX_YAW_DUTY = 70.00;
+const float MIN_YAW_DUTY = 2.00;
 const float delta_t = 0.0208333333333333333333333333333; // 10/480
 typedef struct {
     const float Kp, Ki, Kd;
@@ -13,14 +13,14 @@ typedef struct {
     int8_t duty_cycle;
 } PidStruct;
 
-static PidStruct pidStructAlt = {6, 6, 0.3, 0, 0, 0}; // Updated values
+static PidStruct pidStructAlt = {2.5, 6, 0.3, 0, 0, 0}; // Updated values
 
 void PIDUpdateAlt(int16_t setpoint, int16_t current_altitude) {
     float error = setpoint - current_altitude;
     float P = pidStructAlt.Kp * error;
     float dI = pidStructAlt.Ki * error * delta_t;
     float D = pidStructAlt.Kd * (pidStructAlt.previous_position - current_altitude) / delta_t;
-    int8_t control = P + (pidStructAlt.I + dI) + D;
+    int16_t control = P + (pidStructAlt.I + dI) + D + 30;
 
     pidStructAlt.I = (pidStructAlt.I + dI);
     pidStructAlt.previous_position = current_altitude;
@@ -35,7 +35,7 @@ void PIDUpdateAlt(int16_t setpoint, int16_t current_altitude) {
     setPWM_Main_DC (pidStructAlt.duty_cycle);
 }
 
-static PidStruct pidStructYaw = {5, 1, 1, 0, 0, 0};
+static PidStruct pidStructYaw = {1.5, 0.1, 0.3, 0, 0, 0}; // Updated Yaw Control
 
 void PIDUpdateYaw(int16_t set_orientation, int16_t current_orientation) {
     // Calculate shortest path error
@@ -53,13 +53,13 @@ void PIDUpdateYaw(int16_t set_orientation, int16_t current_orientation) {
 
     pidStructYaw.I += dI;
     // Prevent integral windup
-    if (pidStructYaw.I > MAX_DUTY) pidStructYaw.I = MAX_DUTY;
+    if (pidStructYaw.I > MAX_YAW_DUTY) pidStructYaw.I = MAX_YAW_DUTY;
     if (pidStructYaw.I < MIN_DUTY) pidStructYaw.I = MIN_DUTY;
 
     pidStructYaw.previous_position = current_orientation;
 
-    if (control > MAX_DUTY) control = MAX_DUTY;
-    if (control < MIN_DUTY) control = MIN_DUTY;
+    if (control > MAX_YAW_DUTY) control = MAX_YAW_DUTY;
+    if (control < MIN_YAW_DUTY) control = MIN_YAW_DUTY;
 
     pidStructYaw.duty_cycle = control;
     setPWM_Tail_DC(pidStructYaw.duty_cycle);
