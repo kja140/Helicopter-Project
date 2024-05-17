@@ -59,6 +59,7 @@ initADC (void)
 void
 ADCIntHandler(void)
 {
+
     uint32_t ulValue;
 
     //
