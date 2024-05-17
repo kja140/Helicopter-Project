@@ -127,8 +127,8 @@ void PIDIntHandler (void) {
     PIDFlag = 1;
     TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
     PIDUpdateAlt(DESIRED_ALTITUDE, percentagePower);
-    int16_t yaw = getYaw();
-    PIDUpdateYaw(0, yaw);
+    //int16_t yaw = getYaw();
+    //PIDUpdateYaw(10, yaw);
 }
 
 void initPID(void) {
