@@ -13,7 +13,7 @@ typedef struct {
     int8_t duty_cycle;
 } PidStruct;
 
-static PidStruct pidStructAlt = {7, 2, 0.05, 0, 0, 0};
+static PidStruct pidStructAlt = {6, 6, 0.3, 0, 0, 0}; // Updated values
 
 void PIDUpdateAlt(int16_t setpoint, int16_t current_altitude) {
     float error = setpoint - current_altitude;
