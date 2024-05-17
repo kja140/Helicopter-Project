@@ -38,7 +38,8 @@
 #include "yaw_management.h"
 #include "pwm_management.h"
 #include "pid_control.h"
-//#include "adc_management.h"
+#include "adc_management.h"
+#include "uart.h"
 
 
 //*****************************************************************************
@@ -47,6 +48,7 @@
 
 
 #define SAMPLE_RATE_HZ 480
+#define DESIRED_ALTITUDE 80
 
 
 
@@ -55,6 +57,8 @@
 //*****************************************************************************
 static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
 
+volatile bool PIDFlag = 0;
+volatile bool ADCFlag = 0;
 //static int32_t current_time_nano;
 //static int32_t last_update_time;
 
@@ -76,13 +80,8 @@ static volatile int8_t counter;
 void
 SysTickIntHandler(void)
 {
-    //current_time_nano += 2083333;
-    if (counter >= 10) {
-        pid_flag = 1;
-        counter = 0;
-    } else
-        counter++;
-
+    static uint8_t tickCount = 0;
+    const uint8_t ticksPerSlow = SYSTICK_RATE_HZ / SLOWTICK_RATE_HZ;
     // Initiate a conversion
     //
     ADCProcessorTrigger(ADC0_BASE, 3);
@@ -90,29 +89,11 @@ SysTickIntHandler(void)
     // Poll the buttons
     updateButtons();
     //
-}
-
-//*****************************************************************************
-//
-// The handler for the ADC conversion complete interrupt.
-// Writes to the circular buffer.
-//
-//*****************************************************************************
-void
-ADCIntHandler(void)
-{
-    uint32_t ulValue;
-
-    //
-    // Get the single sample from ADC0.  ADC_BASE is defined in
-    // inc/hw_memmap.h
-    ADCSequenceDataGet(ADC0_BASE, 3, &ulValue);
-    //
-    // Place it in the circular buffer (advancing write index)
-    writeCircBuf (&g_inBuffer, ulValue);
-    //
-    // Clean up, clearing the interrupt
-    ADCIntClear(ADC0_BASE, 3);
+    if (++tickCount >= ticksPerSlow)
+    {                       // Signal a slow tick
+        tickCount = 0;
+        slowTick = true;
+    }
 }
 
 
@@ -138,56 +119,14 @@ initClock (void)
     SysTickIntEnable();
     SysTickEnable();
 }
-void
-initADC (void)
-{
-    //
-    // The ADC0 peripheral must be enabled for configuration and use.
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
 
-    // Enable sample sequence 3 with a processor signal trigger.  Sequence 3
-    // will do a single sample when the processor sends a signal to start the
-    // conversion.
-    ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
-
-    //
-    // Configure step 0 on sequence 3.  Sample channel 0 (ADC_CTL_CH0) in
-    // single-ended mode (default) and configure the interrupt flag
-    // (ADC_CTL_IE) to be set when the sample is done.  Tell the ADC logic
-    // that this is the last conversion on sequence 3 (ADC_CTL_END).  Sequence
-    // 3 has only one programmable step.  Sequence 1 and 2 have 4 steps, and
-    // sequence 0 has 8 programmable steps.  Since we are only doing a single
-    // conversion using sequence 3 we will only configure step 0.  For more
-    // on the ADC sequences and steps, refer to the LM3S1968 datasheet.
-    ADCSequenceStepConfigure(ADC0_BASE, 3, 0, ADC_CTL_CH9 | ADC_CTL_IE |
-                             ADC_CTL_END);
-
-    //
-    // Since sample sequence 3 is now configured, it must be enabled.
-    ADCSequenceEnable(ADC0_BASE, 3);
-
-    //
-    // Register the interrupt handler
-    ADCIntRegister (ADC0_BASE, 3, ADCIntHandler);
-
-    //
-    // Enable interrupts for ADC0 sequence 3 (clears any outstanding interrupts)
-    ADCIntEnable(ADC0_BASE, 3);
-}
-
-uint16_t getADCAverage(void) {
-    uint32_t sum = 0;
-    uint16_t i;
-    for (i = 0; i < BUF_SIZE; i++)
-        sum += readCircBuf(&g_inBuffer);
-    return (2 * sum + BUF_SIZE) / 2 / BUF_SIZE;
-}
 
 
 
 void PIDIntHandler (void) {
+    PIDFlag = 1;
     TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
-    PIDUpdateAlt(80, percentagePower);
+    PIDUpdateAlt(DESIRED_ALTITUDE, percentagePower);
 
 }
 
@@ -198,19 +137,18 @@ void initPID(void) {
     }
 
     TimerConfigure(TIMER1_BASE, TIMER_CFG_PERIODIC);
-    TimerLoadSet(TIMER1_BASE, TIMER_A, 960000153); //20MHZ clock so interrupt frequency here is 20 MHZ / 20 000 ticks gives 1kHz (updates every 1ms)
+    TimerLoadSet(TIMER1_BASE, TIMER_A, 2000000); //20MHZ clock so interrupt frequency here is 20 MHZ / 20 000 ticks gives 1kHz (updates every 1ms)
     TimerIntRegister(TIMER1_BASE, TIMER_A, PIDIntHandler);
     IntEnable(INT_TIMER1A);
     TimerIntEnable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
     TimerEnable(TIMER1_BASE, TIMER_A);
 }
 
+
 int main(void)
 {
     IntMasterDisable();
     uint16_t adcMean;
-   // int16_t percentagePower;
-    //int32_t duty_cycle = 2;
 
     SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ); // 20MHz
     SysCtlPWMClockSet(PWM_DIVIDER_CODE); //PWM Clock rate 10MHz
@@ -233,11 +171,12 @@ int main(void)
     initYaw ();
     initPID ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
+    initialiseUSB_UART ();
     bool landed = 1;
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
 
 
-    //uint8_t displayState = 0;
+    uint8_t displayState = 0;
     uint16_t helicopterLandedAltitude = 0;
 
 
@@ -251,8 +190,16 @@ int main(void)
 
 
 
-
         adcMean = getADCAverage();
+        percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
+
+        if (landed == 1) {kpoj[]
+            helicopterLandedAltitude = adcMean;
+            //helicopterMaxAltitude = (adcMean - 1241);
+            landed = 0;
+        }
+
+
 
 
 
@@ -260,25 +207,23 @@ int main(void)
             landed = 1;
         }
 
-        if (landed == 1) {
-            helicopterLandedAltitude = adcMean;
-            //helicopterMaxAltitude = (adcMean - 1241);
-            landed = 0;
+
+
+
+
+        if (slowTick)
+        {
+            slowTick = false;
+            // Form and send a status message to the console
+            usprintf(statusStr, "Altitude%2d | Desired Altitude%2d \r\n", percentagePower, DESIRED_ALTITUDE);
+            UARTSend (statusStr);
         }
-
-        percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
-      //  if (pid_flag == 1) {
-        //    pid_flag = 0;
-         //   PIDUpdateAlt(80, percentagePower);
-        //    PIDUpdateYaw(0, getYaw());
-       // }
-
 
         //if (sw1_changed())
             // the DOWN position of the switch should indicate that the helicopter is either landed or in the process of landing.
             // Changing the slider switch from DOWN to UP when the helicopter is landed should cause the helicopter to take off.
 
-        /*
+
         if ((checkButton (UP) == PUSHED)) {
             if (displayState < 2) {
                 displayState++;
@@ -287,15 +232,15 @@ int main(void)
             }
             OrbitOledClear();
         }
-        */
+
         displayYaw_Altitude_PWMMain_PWMTail(percentagePower);
-        /*
+
         if (displayState == 0) {
 
             displayPercentageVal(percentagePower);
         } else if (displayState == 1) {
             displayMeanAndYaw(adcMean, helicopterLandedAltitude);
-        }*/
+        }
 
         SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
     }
