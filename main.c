@@ -30,6 +30,9 @@
 #include "driverlib/systick.h"
 #include "driverlib/interrupt.h"
 
+#include "driverlib/timer.h"
+#include "inc/hw_ints.h"
+
 #include "display_management.h"
 #include "yaw_management.h"
 #include "pwm_management.h"
@@ -175,14 +178,31 @@ int16_t getADCAverage(void) {
 
 
 
+void PIDIntHandler (void) {
+    TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
+    PIDUpdateAlt(80, percentagePower);
 
+}
 
+void initPID(void) {
 
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER1);
+    while (!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER1)) {
+    }
 
-int main(void){
+    TimerConfigure(TIMER1_BASE, TIMER_CFG_PERIODIC);
+    TimerLoadSet(TIMER1_BASE, TIMER_A, 960000153); //20MHZ clock so interrupt frequency here is 20 MHZ / 20 000 ticks gives 1kHz (updates every 1ms)
+    TimerIntRegister(TIMER1_BASE, TIMER_A, PIDIntHandler);
+    IntEnable(INT_TIMER1A);
+    TimerIntEnable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
+    TimerEnable(TIMER1_BASE, TIMER_A);
+}
+
+int main(void)
+{
     IntMasterDisable();
-    int16_t adcMean;
-    int16_t percentagePower;
+    uint16_t adcMean;
+   // int16_t percentagePower;
     //int32_t duty_cycle = 2;
 
     SysCtlClockSet (SYSCTL_SYSDIV_10 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ); // 20MHz
@@ -205,7 +225,7 @@ int main(void){
     initPWM ();
     initADC ();
     initYaw ();
-
+    initPID ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
     bool landed = 1;
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
