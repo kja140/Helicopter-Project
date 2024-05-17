@@ -35,7 +35,7 @@ void PIDUpdateAlt(int16_t setpoint, int16_t current_altitude) {
     setPWM_Main_DC (pidStructAlt.duty_cycle);
 }
 
-static PidStruct pidStructYaw = {12, 2, 2, 0, 0, 0};
+static PidStruct pidStructYaw = {5, 1, 1, 0, 0, 0};
 
 void PIDUpdateYaw(int16_t set_orientation, int16_t current_orientation) {
     // Calculate shortest path error

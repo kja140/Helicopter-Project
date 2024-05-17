@@ -73,7 +73,7 @@ displayCalibratingScreen (void) {
     int16_t yawdwhole = yawd / 10;
     int16_t yawddec = abs(yawd % 10);
     usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
-    OLEDStringDraw ("string", 0, 1);
+    OLEDStringDraw (string, 0, 1);
 }
 
 void

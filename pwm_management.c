@@ -96,7 +96,7 @@ initPWM (void)
  * Function to set the freq, duty cycle of M0PWM7
  ********************************************************/
 void
-setPWM_Main_DC (int8_t duty_cycle)
+setPWM_Main_DC (int16_t duty_cycle)
 {
     duty_cycle_main = duty_cycle;
     PWMPulseWidthSet(PWM_MAIN_BASE, PWM_MAIN_OUTNUM, ui32Period * duty_cycle / 100);

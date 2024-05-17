@@ -17,7 +17,7 @@
 
 void initPWM (void);
 void
-setPWM_Main_DC (int8_t duty_cycle);
+setPWM_Main_DC (int16_t duty_cycle);
 void
 setPWM_Tail_DC (int8_t duty_cycle);
 int8_t

@@ -30,15 +30,13 @@
 #include "driverlib/systick.h"
 #include "driverlib/interrupt.h"
 
-#include "driverlib/timer.h"
-#include "inc/hw_ints.h"
 
 #include "display_management.h"
 #include "yaw_management.h"
 #include "pwm_management.h"
 #include "pid_control.h"
 #include "switch.h"
-//#include "adc_management.h"
+#include "adc_management.h"
 #include "adc_management.h"
 #include "uart.h"
 
@@ -59,7 +57,7 @@
 //*****************************************************************************
 // Global variables
 //*****************************************************************************
-//static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
+static circBuf_t g_inBuffer;        // Buffer of size BUF_SIZE integers (sample values)
 
 volatile bool PIDFlag = 0;
 volatile bool ADCFlag = 0;
@@ -70,6 +68,7 @@ volatile int8_t pid_flag = 0;
 static volatile int8_t counter = 0;
 int8_t set_altitude = 0;
 int32_t set_orientation = 0;
+volatile int16_t percentagePower;
 
 //*****************************************************************************
 //
@@ -82,7 +81,12 @@ SysTickIntHandler(void)
     static uint8_t tickCount = 0;
     const uint8_t ticksPerSlow = SYSTICK_RATE_HZ / SLOWTICK_RATE_HZ;
     // Initiate a conversion
-    //
+    if (counter >= 10) {
+        pid_flag = 1;
+        counter = 0;
+    } else
+        counter++;
+
     ADCProcessorTrigger(ADC0_BASE, 3);
     //
     // Poll the buttons
@@ -122,28 +126,6 @@ initClock (void)
 
 
 
-void PIDIntHandler (void) {
-    PIDFlag = 1;
-    TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
-    PIDUpdateAlt(DESIRED_ALTITUDE, percentagePower);
-    //int16_t yaw = getYaw();
-    //PIDUpdateYaw(10, yaw);
-}
-
-void initPID(void) {
-
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER1);
-    while (!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER1)) {
-    }
-
-    TimerConfigure(TIMER1_BASE, TIMER_CFG_PERIODIC);
-    TimerLoadSet(TIMER1_BASE, TIMER_A, 2000000); //20MHZ clock so interrupt frequency here is 20 MHZ / 20 000 ticks gives 1kHz (updates every 1ms)
-    TimerIntRegister(TIMER1_BASE, TIMER_A, PIDIntHandler);
-    IntEnable(INT_TIMER1A);
-    TimerIntEnable(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
-    TimerEnable(TIMER1_BASE, TIMER_A);
-}
-
 
 int main(void)
 {
@@ -170,14 +152,13 @@ int main(void)
     initPWM ();
     initADC ();
     initYaw ();
-    initPID ();
     initCircBuf (&g_inBuffer, BUF_SIZE);
     initialiseUSB_UART ();
     bool landed = 1;
     PWMOutputState(PWM_MAIN_BASE, PWM_MAIN_OUTBIT, true);
 
 
-    uint8_t displayState = 0;
+    //uint8_t displayState = 0;
     uint16_t helicopterLandedAltitude = 0;
 
 
@@ -247,6 +228,7 @@ int main(void)
                 PIDUpdateYaw(set_orientation, calculateYawDegrees(getYaw()) / 10);
             }
         }
+
         //SysCtlDelay (SysCtlClockGet() / 60);  // Update display at ~ 20 Hz
         //if (sw1_changed())
             // the DOWN position of the switch should indicate that the helicopter is either landed or in the process of landing.
@@ -257,7 +239,7 @@ int main(void)
         {
             slowTick = false;
             // Form and send a status message to the console
-            usprintf(statusStr, "Altitude%2d | Desired Altitude%2d \r\n", percentagePower, DESIRED_ALTITUDE);
+            usprintf(statusStr, "Altitude%2d | Desired Altitude%2d \r\n", percentagePower, set_altitude);
             UARTSend (statusStr);
         }
     }
