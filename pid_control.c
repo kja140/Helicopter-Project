@@ -4,7 +4,7 @@
 
 const float MAX_DUTY = 98.00;
 const float MIN_DUTY = 2.00;
-const float MAX_YAW_DUTY = 70.00;
+const float MAX_YAW_DUTY = 98.00;
 const float MIN_YAW_DUTY = 2.00;
 const float delta_t = 0.0208333333333333333333333333333; // 10/480
 typedef struct {
@@ -35,8 +35,8 @@ void PIDUpdateAlt(int16_t setpoint, int16_t current_altitude) {
     setPWM_Main_DC (pidStructAlt.duty_cycle);
 }
 
-static PidStruct pidStructYaw = {1.5, 0.1, 0.3, 0, 0, 0}; // Updated Yaw Control
-
+//static PidStruct pidStructYaw = {1.2, 0.1, 0.4, 0, 0, 0}; // Updated Yaw Control
+static PidStruct pidStructYaw = {1.2, 0, 0, 0, 0, 0}; // Updated Yaw Control
 void PIDUpdateYaw(int16_t set_orientation, int16_t current_orientation) {
     // Calculate shortest path error
     float error = set_orientation - current_orientation;
@@ -54,7 +54,7 @@ void PIDUpdateYaw(int16_t set_orientation, int16_t current_orientation) {
     pidStructYaw.I += dI;
     // Prevent integral windup
     if (pidStructYaw.I > MAX_YAW_DUTY) pidStructYaw.I = MAX_YAW_DUTY;
-    if (pidStructYaw.I < MIN_DUTY) pidStructYaw.I = MIN_DUTY;
+    if (pidStructYaw.I < MIN_YAW_DUTY) pidStructYaw.I = MIN_YAW_DUTY;
 
     pidStructYaw.previous_position = current_orientation;
 

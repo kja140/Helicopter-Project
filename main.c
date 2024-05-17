@@ -67,7 +67,7 @@ volatile bool ADCFlag = 0;
 volatile int8_t pid_flag = 0;
 static volatile int8_t counter = 0;
 int8_t set_altitude;
-int32_t set_orientation = 0;
+int32_t set_orientation = 15;
 volatile int16_t percentagePower;
 uint8_t slowTick = 0;
 //*****************************************************************************
@@ -256,12 +256,12 @@ int main(void)
             }
         } else if (sw1_is_up () == 0) {
             OrbitOledClear();
-            if (percentagePower > 1) {
+            if ((percentagePower > 1) && (((calculateYawDegrees(getYaw()) / 10) > 16) && ((calculateYawDegrees(getYaw()) / 10) < -16))) {
                 landing = 1;
                 displayLandedingScreen(percentagePower);
                 PIDUpdateYaw(0, calculateYawDegrees(getYaw()) / 10);
                 PIDUpdateAlt(0, percentagePower);
-            } else if (percentagePower < 1) {
+            } else if ((percentagePower < 1) && (((calculateYawDegrees(getYaw()) / 10) < 16) && ((calculateYawDegrees(getYaw()) / 10) > -16))) {
                 landing = 0;
                 landed = 1;
                 displayLandedScreen ();
