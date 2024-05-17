@@ -127,7 +127,8 @@ void PIDIntHandler (void) {
     PIDFlag = 1;
     TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
     PIDUpdateAlt(DESIRED_ALTITUDE, percentagePower);
-
+    int16_t yaw = getYaw();
+    PIDUpdateYaw(0, yaw);
 }
 
 void initPID(void) {
@@ -193,7 +194,7 @@ int main(void)
         adcMean = getADCAverage();
         percentagePower = ((helicopterLandedAltitude - adcMean)  * 100) / 1241;
 
-        if (landed == 1) {kpoj[]
+        if (landed == 1) {
             helicopterLandedAltitude = adcMean;
             //helicopterMaxAltitude = (adcMean - 1241);
             landed = 0;
