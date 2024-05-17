@@ -268,10 +268,13 @@ int main(void){
             PIDUpdateAlt(set_altitude, percentagePower);
 
             if (getCalibratedStatus() == 0) {
+                OrbitOledClear();
                 do {
                     setPWM_Tail_DC(40);
                     //SysCtlDelay(2 * SysCtlClockGet());
+                    displayCalibratingScreen();
                 } while (getCalibratedStatus() == 0);
+                OrbitOledClear();
             } else {
                 PIDUpdateYaw(set_orientation, calculateYawDegrees(getYaw()) / 10);
             }

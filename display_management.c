@@ -66,6 +66,17 @@ displaySetupScreen (void) {
 }
 
 void
+displayCalibratingScreen (void) {
+    OLEDStringDraw ("Calibrating...", 0, 0);
+    char string[17];  // 16 characters across the display
+    int16_t yawd = calculateYawDegrees(getYaw());
+    int16_t yawdwhole = yawd / 10;
+    int16_t yawddec = abs(yawd % 10);
+    usnprintf(string, sizeof(string), "Yaw: %d.%d deg   ", yawdwhole, yawddec);
+    OLEDStringDraw ("string", 0, 1);
+}
+
+void
 displayYaw_Altitude_PWMMain_PWMTail(int32_t alitude, int32_t set_alt) {
     char string[17];  // 16 characters across the display
 
